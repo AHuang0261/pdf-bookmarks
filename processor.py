@@ -1,8 +1,9 @@
 from PyPDF2 import PdfReader, PdfWriter
 import re
-#TODO Use AI to determine page offset
+from rapidfuzz import fuzz
 
-name = "anal1v.pdf"
+#Testing Data
+# name = "pdf-bookmarks/anal1v.pdf"
 # name = "Architecture Essay.pdf"
 # name = "Halliday - Fundamentals of Physics Extended 9th-HQ.pdf"
 # name = "Xenoblade The Secret Files English Translation_v1-4.pdf"
@@ -14,13 +15,14 @@ def find_toc(name):
         for i in range(0, len(pdf_reader.pages)):
             current_page = pdf_reader.pages[i]
             text = current_page.extract_text()
+            print(text[:50])
             if "contents" in text.lower():
                 return i
         print("Table of contents not found")
         return -1
 
 
-def read_toc(name, offset, starting_page = -2):
+def read_toc(name,starting_page = -2):
     if starting_page == -2:
         starting_page = find_toc(name)
     with open(name, "rb") as f:
@@ -28,8 +30,8 @@ def read_toc(name, offset, starting_page = -2):
         current_page = starting_page
         outlines_added = 0
         writer = PdfWriter()
-        offset = offset
-        # is_first_page = True
+        is_first_page = True
+        #loading writer
         for page in pdf_reader.pages:
             writer.add_page(page)
         current_parent_chapter = None
@@ -42,21 +44,18 @@ def read_toc(name, offset, starting_page = -2):
                 continue
             lines = page_text.split("\n")
             for line in lines:
-                # print(line)
-                delimiter = line.rfind(' ')
+                delimiter = line.rfind(r"^0-9") #finds last non digit to separate off pg number
                 p = line[delimiter:].strip()
-                # print(f"p = {p}")
                 if p.isdigit(): 
                     loaded_counter += 1
                     outlines_added += 1
                     title = line[:delimiter]
                     p = int(p)
-                    # print(f"Title: {title}, pg: {p}")
                     
-                    # if is_first_page:
-                    #     is_first_page = False
-                    #     offset = find_offset(pdf_reader, starting_page, title, p)
-                    #     print(f"Offset = {offset}")
+                    if is_first_page:
+                        is_first_page = False
+                        offset = find_offset(pdf_reader, starting_page, title, p)
+                        print(f"Offset = {offset}")
 
                     #misc e.g. preface
                     if not re.search(r"[0-9]", title):
@@ -68,40 +67,45 @@ def read_toc(name, offset, starting_page = -2):
                     #subchapter
                     else:
                         writer.add_outline_item(title, p+offset, parent= current_parent_chapter)
-                    print(f"p = {p}, offset = {offset}, Added page = {p+offset}")
+                    print(f"Bookmarking: '{title}' on page {p + offset} (original page {p})")
                 else:
                     continue
             current_page += 1
             if loaded_counter < 1: break
-    with open(f"{name}-Bookmarked.pdf", "wb") as f_out:
+    
+    #We avoid saying .pdf twice
+    striped_name = name[:-4]
+    with open(f"{striped_name}-Bookmarked.pdf", "wb") as f_out:
         writer.write(f_out)
     
     return outlines_added
 
-# def find_offset(pdf_reader, starting_page, chapter_name, listed_page):
-#     current_page = starting_page + 1 #start search 1 page after chpt name is listed
-#     print(f"Chpt name: {chapter_name}")
-#     while current_page < len(pdf_reader.pages):
-#         page_text = pdf_reader.pages[current_page].extract_text()
-#         page_text.strip()
-#         page_text = re.sub(r' +', ' ', page_text)
-#         page_text = page_text[:30+len(chapter_name)]#arbitrarily setting to 30 characters to account for any random stuff they might have
-#         print(f"Page {current_page}:\n{page_text}")
-#         if chapter_name.lower() in page_text.lower():
-#             break
-#         current_page += 1
+def find_offset(pdf_reader, starting_page, chapter_name, listed_page, similarity_threshold = 70):
+    current_page = starting_page + 1 #start search 1 page after chpt name is listed
+    print(f"Chpt name: {chapter_name}")
+    while current_page < len(pdf_reader.pages):
+        page_text = pdf_reader.pages[current_page].extract_text()
+        if not page_text:
+            current_page += 1
+            continue
+        page_text = re.sub(r'\s+', ' ', page_text)
+        page_text = page_text[:30+len(chapter_name)]#arbitrarily setting to 30 characters to account for any random stuff they might have
+        similarity = fuzz.partial_ratio(page_text.lower(), chapter_name.strip().lower())
+        print(f"Page {current_page}:\n{page_text}. Similarity = {similarity}")
+        
+        if similarity >= similarity_threshold:
+            print(f"Match found on page {current_page} with similarity {similarity}")
+            break
+        current_page += 1
 
     
-#     return current_page - int(listed_page)
+    return current_page - int(listed_page)
 
 
 
 
-# print(find_toc(name))
-offset = int(input("Please enter offset(2 less than book page 1): "))
-print(read_toc(name, offset))
-# with open(name, 'rb') as f:
-#         pdf = PdfReader(f)
-#         print(pdf.pages[29].extract_text())
+name = input("Please enter the path of the file: ").replace('"', '') #Removing quote marks as windows copy path adds these
+print(read_toc(name))
+
 
 
