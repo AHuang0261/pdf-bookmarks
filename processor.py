@@ -39,6 +39,7 @@ def read_toc(name,starting_page = -2):
         for page in pdf_reader.pages:
             writer.add_page(page)
         current_parent_chapter = None
+        writer.add_outline_item("Contents", starting_page)
         while current_page < len(pdf_reader.pages): #should never reach this termination condition
             loaded_counter = 0
             page_text = pdf_reader.pages[current_page].extract_text()
@@ -75,7 +76,7 @@ def read_toc(name,starting_page = -2):
                     continue
             current_page += 1
             if loaded_counter < 1: break
-    
+        
     #We avoid saying .pdf twice
     striped_name = name[:-4]
     with open(f"{striped_name}-Bookmarked.pdf", "wb") as f_out:
