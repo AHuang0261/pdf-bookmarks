@@ -2,6 +2,7 @@ from PyPDF2 import PdfReader, PdfWriter
 import re
 from rapidfuzz import fuzz
 
+#TODO Add OCR
 #Testing Data
 # name = "pdf-bookmarks/anal1v.pdf"
 # name = "Architecture Essay.pdf"
@@ -15,7 +16,10 @@ def find_toc(name):
         for i in range(0, len(pdf_reader.pages)):
             current_page = pdf_reader.pages[i]
             text = current_page.extract_text()
-            print(text[:50])
+            if text == None or text == "":
+                print(f"Unable to extract text from page {i}")
+                continue
+            print(f"Page {i}: {text[:50]}")
             if "contents" in text.lower():
                 return i
         print("Table of contents not found")
@@ -44,13 +48,12 @@ def read_toc(name,starting_page = -2):
                 continue
             lines = page_text.split("\n")
             for line in lines:
-                delimiter = line.rfind(r"^0-9") #finds last non digit to separate off pg number
-                p = line[delimiter:].strip()
-                if p.isdigit(): 
+                match = re.search(r'(\d+)\s*$', line)
+                if match:
+                    p = int(match.group(1))
+                    title = line[:match.start()].strip()  # Remove common trailing characters
                     loaded_counter += 1
                     outlines_added += 1
-                    title = line[:delimiter]
-                    p = int(p)
                     
                     if is_first_page:
                         is_first_page = False
@@ -105,6 +108,7 @@ def find_offset(pdf_reader, starting_page, chapter_name, listed_page, similarity
 
 
 name = input("Please enter the path of the file: ").replace('"', '') #Removing quote marks as windows copy path adds these
+# offset = int(input("Please enter the pdf page coresponding to book page 1, or -1 if unknown: "))
 print(read_toc(name))
 
 
